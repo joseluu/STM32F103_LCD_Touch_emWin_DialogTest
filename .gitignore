@@ -1,0 +1,11 @@
+.vs/
+CodeDB/
+Debug/
+Release/
+Src/Backup
+Inc/Backup
+VisualGDBCache/
+obj/
+*~
+DLG_Test.sdf
+
