@@ -36,6 +36,7 @@ Purpose     : Display driver configuration file
 #define INIT_PIN(PORT,PIN) GPIO_InitStruct.Pin = PIN; \
 							HAL_GPIO_Init(PORT,&GPIO_InitStruct);
 
+extern int tftID;
 void LcdWriteReg8(unsigned char Cmd);
 void LcdWriteData8(unsigned char Data);
 void LcdWriteReg16(unsigned short Cmd);
@@ -149,7 +150,7 @@ reset: PB_15,
 #define ADC2_CHANNEL ADC_CHANNEL_9
 #endif
 #endif
-
+#define _SYNC(val)  HAL_GPIO_WritePin(GPIOB,GPIO_PIN_8,(val?GPIO_PIN_SET:GPIO_PIN_RESET))  // synchronize oscilloscope
 
 #endif /* LCDCONF_H */
 

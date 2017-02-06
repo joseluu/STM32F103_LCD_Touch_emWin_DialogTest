@@ -120,7 +120,7 @@ Purpose     : Display controller configuration (single layer)
 **********************************************************************
 */
 void MX_GPIO_Init(void);
-
+int tftID;
 
 
 
@@ -133,6 +133,15 @@ void delay_clk_DWT(uint32_t nCycles)
 }
 void delay_us_DWT(int uSec)
 {
+	volatile uint32_t cycles = (SystemCoreClock / 1000000L)*uSec;
+	volatile uint32_t start = DWT->CYCCNT;
+	do {
+	} while (DWT->CYCCNT - start < cycles);
+}
+
+void delay_ms_DWT(int mSec)
+{
+	uint32_t uSec = mSec * 1000;
 	volatile uint32_t cycles = (SystemCoreClock / 1000000L)*uSec;
 	volatile uint32_t start = DWT->CYCCNT;
 	do {
@@ -186,11 +195,11 @@ void LcdWriteReg16(unsigned short Cmd)
 	_CS(0);
 	_DC(0); // 0=cmd
 	_WR(0);
-	GPIOA->ODR = (GPIOA->ODR & 0xFF00) | (Cmd & 0xFF); //write LSB
+	GPIOA->ODR = (GPIOA->ODR & 0xFF00) | (Cmd >> 8);     // write MSB
 	_LE(1);
 	delay_clk_DWT(1);
 	_LE(0);
-	GPIOA->ODR = (GPIOA->ODR & 0xFF00) | (Cmd >> 8);     // write MSB
+	GPIOA->ODR = (GPIOA->ODR & 0xFF00) | (Cmd & 0xFF); //write LSB
 	delay_clk_DWT(1);
 	_WR(1);					// should allow 10ns min settling time
 	_CS(1);
@@ -225,11 +234,11 @@ void LcdWriteData16(unsigned short Data)
 {
 	_CS(0);
 	_DC(1); // 1=data just to make sure
-	GPIOA->ODR = (GPIOA->ODR & 0xFF00) | (Data&0xFF);     // write LSB
+	GPIOA->ODR = (GPIOA->ODR & 0xFF00) | (Data >> 8);     // write MSB
 	_LE(1);
 	delay_clk_DWT(1);
 	_LE(0);
-	GPIOA->ODR = (GPIOA->ODR & 0xFF00) | (Data >> 8);     // write MSB
+	GPIOA->ODR = (GPIOA->ODR & 0xFF00) | (Data & 0xFF);     // write LSB
 	delay_clk_DWT(1);
 	_WR(0);
 	_WR(1);					// should allow 10ns min settling time
@@ -308,7 +317,7 @@ static void Port_Data_output()
 #ifdef SCATTERED_LCD_DATA_IO
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	INIT_PIN(LCD_D0_PORT, LCD_D0_PIN)
 	INIT_PIN(LCD_D1_PORT, LCD_D1_PIN)
 	INIT_PIN(LCD_D2_PORT, LCD_D2_PIN)
@@ -323,7 +332,7 @@ static void Port_Data_output()
 	GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 
 	                        | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-	GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 #endif
 }
@@ -379,7 +388,6 @@ unsigned int rd_reg_data32(unsigned char reg)
 }
 
 void Board_LCD_Init(void) {
-	unsigned int tftID;
 	MX_GPIO_Init();
 	_RD(1);
 	_WR(1);
@@ -395,7 +403,8 @@ void Board_LCD_Init(void) {
 	_RESET(1);          // end reset
 	delay_us_DWT(151370);		// 120 ms min		
 
-
+	_SYNC(1);
+	_SYNC(0);
 	tftID = rd_reg_data32(0x0);
 	lcd_ctrl_initialize();
 
@@ -528,38 +537,49 @@ void MX_GPIO_Init(void)
 
 #ifdef SWEEPER
 	  /*Configure GPIO pin : PB */
-	GPIO_InitStruct.Pin = (GPIO_PIN_14);
+	GPIO_InitStruct.Pin = (GPIO_PIN_8 | GPIO_PIN_14);
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
-	GPIOB->ODR = 0x1F0; // avoid spikes on control lines
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	GPIOB->ODR = 1 << 14; // avoid spikes on control lines
 	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-	GPIOB->ODR = 0x1F0;
+	GPIOB->ODR = 1 << 14;
 
 	  /*Configure GPIO pins : PC13: LED */
 	GPIO_InitStruct.Pin = (GPIO_PIN_6 | GPIO_PIN_8 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12);
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 #elif defined(NUCLEO)
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	INIT_PIN(LCD_CS_PORT, LCD_CS_PIN)
 	INIT_PIN(LCD_DC_PORT, LCD_DC_PIN)
 	INIT_PIN(LCD_WR_PORT, LCD_WR_PIN)
 	INIT_PIN(LCD_RD_PORT, LCD_RD_PIN)
 	INIT_PIN(LCD_RESET_PORT, LCD_RESET_PIN)
+
+		  /*Configure GPIO pins : PB_8: SYNC */
+	GPIO_InitStruct.Pin = GPIO_PIN_8;
+	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 		  /*Configure GPIO pins : PC13: LED */
 	GPIO_InitStruct.Pin = GPIO_PIN_13;
 	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 #else
+
+  /*Configure GPIO pin : PA8 */
+	GPIO_InitStruct.Pin = GPIO_PIN_8;
+	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
 	  /*Configure GPIO pin : PB */
-	GPIO_InitStruct.Pin = (GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_15);
+	GPIO_InitStruct.Pin = (GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_8 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_15);
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	GPIOB->ODR = 0x1F0; // avoid spikes on control lines
 	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 	GPIOB->ODR = 0x1F0;
@@ -568,7 +588,7 @@ void MX_GPIO_Init(void)
 	GPIO_InitStruct.Pin = GPIO_PIN_13;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 #endif
 

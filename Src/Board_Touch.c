@@ -12,7 +12,7 @@
 #include "Board_Touch.h"
 #include "Touch_ADC.h"
 #include "LCDConf_F103_24.h"
-
+#ifdef USING_TOUCH_ADC
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -28,11 +28,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 #define USE_EMWIN_ANALOG_DRIVER
 #ifdef USE_EMWIN_ANALOG_DRIVER
 
-
-void Touch_GetState(TOUCH_STATE *touch_state)
-{
-	touch_state->pressed = 0;
-}
 
 volatile static int pressure;
 void GUI_TOUCH_X_ActivateY(void){ // for X measurements
@@ -80,4 +75,5 @@ void   Touch_Initialize(void)
 }
 #else
 
+#endif
 #endif
